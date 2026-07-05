@@ -17,6 +17,31 @@ on:
         required: false
         type: string
         default: latest
+      extra-files-artifact:
+        description: >-
+          Name of a workflow artifact, uploaded by an earlier job in the
+          calling workflow, to extract into the repository root before
+          compiling. Use this to hand over files your Typst source reads at
+          compile time but that shouldn't be committed, such as a
+          metadata.yml built from secrets. Leave empty if not needed.
+        required: false
+        type: string
+        default: ""
+      extra-site-files-artifact:
+        description: >-
+          Name of a workflow artifact, uploaded by an earlier job in the
+          calling workflow, to extract into the built site directory after
+          compiling. Use this for static files that belong alongside the
+          compiled PDF on the deployed site, such as a landing index.html.
+          Leave empty if not needed.
+        required: false
+        type: string
+        default: ""
+      lfs:
+        description: Whether to fetch Git LFS objects during checkout.
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,15 +57,31 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          lfs: ${{ inputs.lfs }}
 
       - uses: typst-community/setup-typst@v5
         with:
           typst-version: ${{ inputs.typst-version }}
 
+      - name: Download extra files for compilation
+        if: inputs.extra-files-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.extra-files-artifact }}
+          path: .
+
       - name: Compile Typst document
         run: |
           mkdir -p _site
           typst compile "${{ inputs.source-file }}" "_site/${{ inputs.output-file }}"
+
+      - name: Download extra site files
+        if: inputs.extra-site-files-artifact != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ inputs.extra-site-files-artifact }}
+          path: _site
 
       - name: Configure Pages
         uses: actions/configure-pages@v6

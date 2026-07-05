@@ -22,6 +22,9 @@ Compiles a Typst document to PDF and deploys it to GitHub Pages.
 | `source-file` | yes | | Path to the Typst entry file to compile, relative to the repository root. |
 | `output-file` | no | `document.pdf` | Name of the compiled PDF, as it will appear on the deployed Pages site. |
 | `typst-version` | no | `latest` | Typst version range to install. |
+| `extra-files-artifact` | no | (none) | Name of a workflow artifact from an earlier job, extracted into the repository root before compiling. For compile-time files that shouldn't be committed, e.g. a secrets-built `metadata.yml`. |
+| `extra-site-files-artifact` | no | (none) | Name of a workflow artifact, extracted into the built site directory after compiling. For static files alongside the PDF, e.g. a landing `index.html`. |
+| `lfs` | no | `false` | Whether to fetch Git LFS objects during checkout, for documents referencing LFS-tracked images or other binary assets. |
 
 See the [repository README](../../README.md) for full example caller workflows and versioning conventions.
 

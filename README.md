@@ -112,6 +112,9 @@ Inputs:
 - `source-file` (required): path to the `.typ` entry file to compile
 - `output-file` (optional, default `document.pdf`): name of the compiled PDF as it appears on the deployed site
 - `typst-version` (optional, default `latest`): Typst version range to install
+- `extra-files-artifact` (optional): name of a workflow artifact, uploaded by an earlier job in the calling workflow, to extract into the repository root before compiling. For files your Typst source needs at compile time but that shouldn't be committed, such as a `metadata.yml` built from secrets in a job that runs before this one.
+- `extra-site-files-artifact` (optional): name of a workflow artifact to extract into the built site directory after compiling, for static files that belong alongside the PDF, such as a landing `index.html`.
+- `lfs` (optional, default `false`): whether to fetch Git LFS objects during checkout, for Typst documents that reference LFS-tracked images or other binary assets.
 
 Example caller workflow:
 
@@ -137,6 +140,10 @@ jobs:
     with:
       source-file: main.typ
       output-file: document.pdf
+      typst-version: latest
+      lfs: false
+      # extra-files-artifact: metadata          # from an earlier job, placed before compiling
+      # extra-site-files-artifact: site-extras  # from an earlier job, placed into the built site
 ```
 <!-- /snippet:typst-deploy -->
 

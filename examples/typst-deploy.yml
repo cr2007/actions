@@ -18,3 +18,7 @@ jobs:
     with:
       source-file: main.typ
       output-file: document.pdf
+      typst-version: latest
+      lfs: false
+      # extra-files-artifact: metadata          # from an earlier job, placed before compiling
+      # extra-site-files-artifact: site-extras  # from an earlier job, placed into the built site

@@ -1,0 +1,41 @@
+#!/bin/sh
+# Auto-release hook, runs before `git push` transfers anything to the remote.
+#
+# Scans commits since the last tag. If any of them warrant a version bump
+# (per svu's conventional-commit analysis), this hook updates CHANGELOG.md,
+# tags, pushes, and publishes a GitHub release itself, right here, before
+# your original push would have gone out. Since the release path already
+# pushed everything, the push that triggered this hook is then aborted; it
+# would otherwise be rejected by git anyway now that the remote has moved
+# past the commit it was about to push.
+#
+# One-time setup after cloning: git config core.hooksPath .githooks
+
+if [ -n "$RELEASE_HOOK_RUNNING" ]; then
+  # release-tag.py pushes the new tag and commit itself, which re-invokes
+  # this hook. That nested run has nothing new to check; skip it.
+  exit 0
+fi
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$branch" != "main" ]; then
+  exit 0
+fi
+
+export RELEASE_HOOK_RUNNING=1
+uv run "$(git rev-parse --show-toplevel)/scripts/release-tag.py" auto
+status=$?
+
+case "$status" in
+  0)
+    echo "release-tag: published a new release and pushed it already; stopping this push since it is now redundant." >&2
+    exit 1
+    ;;
+  10)
+    exit 0
+    ;;
+  *)
+    echo "release-tag: failed (exit $status); aborting push." >&2
+    exit "$status"
+    ;;
+esac

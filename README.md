@@ -1,6 +1,6 @@
 # actions
 
-Personal collection of reusable GitHub Actions, shared across repositories from this single source of truth.
+Personal collection of reusable GitHub Actions, shared across repositories from this single source of truth.<br>
 Update an action or workflow here once; every repository that calls it picks up the change on its next run (or stays pinned, depending on which tag it references).
 
 This repository holds two kinds of callable GitHub Actions, and they are
@@ -162,3 +162,19 @@ Tags follow semver:
 - **patch** (`v1.0.0` to `v1.0.1`): a fix with no interface change
 
 Each release also moves the floating major tag (e.g. `v1`) forward so consumers pinned to it pick up the update automatically.
+
+## Releasing
+
+`scripts/release-tag.py` bumps the version with [svu](https://github.com/caarlos0/svu), updates `CHANGELOG.md` with [git-cliff](https://git-cliff.org), tags, pushes, and publishes a GitHub release, all in one step. It's a `uv` single-file script, so it needs no separate install:
+
+```bash
+uv run scripts/release-tag.py major   # or minor / patch
+```
+
+A `pre-push` git hook in [`.githooks/`](./.githooks) can also run this automatically: it checks commits since the last tag with `svu next`, and if any of them warrant a release, cuts one before your push goes out (`uv run scripts/release-tag.py auto` under the hood). Enable it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Both paths require `svu` and `gh` (authenticated) on `PATH`.

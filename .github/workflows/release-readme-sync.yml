@@ -1,0 +1,71 @@
+name: Sync README on major release
+
+# Runs after a release is published (created manually, e.g. `gh release create v2.0.0`).
+# If the release is a new major version, updates the version references in
+# examples/*.yml and regenerates README.md, then commits the result directly
+# to the default branch. Minor/patch releases are skipped: they don't change
+# the floating major tag that the README's example snippets point at.
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  check-major:
+    runs-on: ubuntu-latest
+    outputs:
+      is-major: ${{ steps.check.outputs.is-major }}
+      new-major: ${{ steps.check.outputs.new-major }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Determine if this release bumps the major version
+        id: check
+        env:
+          NEW_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          NEW_MAJOR=$(echo "$NEW_TAG" | grep -oE '^v?[0-9]+' | tr -d 'v')
+
+          # Only the first release of a major line (vN.0.0) moves the floating
+          # major tag onto a genuinely new interface; minor/patch releases
+          # (vN.x.y, x>0) update an existing major line and don't affect it.
+          if echo "$NEW_TAG" | grep -qE '^v?[0-9]+\.0\.0$'; then
+            echo "is-major=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-major=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "new-major=v${NEW_MAJOR}" >> "$GITHUB_OUTPUT"
+
+  update-readme:
+    needs: check-major
+    if: needs.check-major.outputs.is-major == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Bump floating major tag in examples
+        run: bun scripts/bump-version-refs.js "${{ needs.check-major.outputs.new-major }}"
+
+      - name: Regenerate README.md
+        run: bun scripts/generate-readme.js
+
+      - name: Commit updated README and examples
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: "docs: update README examples to ${{ needs.check-major.outputs.new-major }} (release ${{ github.event.release.tag_name }})"
+          file_pattern: "README.md examples/*.yml"
+          commit_user_name: "github-actions[bot]"
+          commit_user_email: "github-actions[bot]@users.noreply.github.com"

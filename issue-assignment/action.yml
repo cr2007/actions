@@ -1,0 +1,122 @@
+name: Issue Assignment
+description: Lets collaborators self-assign, release, assign, or unassign issues via comments (.take, .release, .assign @user, .unassign @user).
+
+inputs:
+  comment-body:
+    required: true
+    description: Body of the comment that triggered this action.
+  comment-author:
+    required: true
+    description: Login of the user who posted the comment.
+  issue-number:
+    required: true
+    description: Number of the issue the comment was posted on.
+  repository:
+    required: true
+    description: Full "owner/repo" name of the repository.
+  is-pull-request:
+    required: false
+    default: "false"
+    description: Set to "true" if the comment was posted on a pull request; the action will exit without doing anything.
+
+runs:
+  using: composite
+  steps:
+    - name: Process issue assignment command
+      uses: actions/github-script@v9
+      env:
+        COMMENT_BODY: ${{ inputs.comment-body }}
+        COMMENT_AUTHOR: ${{ inputs.comment-author }}
+        ISSUE_NUMBER: ${{ inputs.issue-number }}
+        REPOSITORY: ${{ inputs.repository }}
+        IS_PULL_REQUEST: ${{ inputs.is-pull-request }}
+      with:
+        script: |
+          // Values are passed via env, not interpolated into this script
+          // string, so a hostile comment body cannot break out into code.
+          const comment = process.env.COMMENT_BODY;
+          const commenter = process.env.COMMENT_AUTHOR;
+          const issue_number = Number(process.env.ISSUE_NUMBER);
+          const [owner, repo] = process.env.REPOSITORY.split('/');
+          const isPullRequest = process.env.IS_PULL_REQUEST === 'true';
+
+          if (isPullRequest) {
+            core.info('Comment is on a pull request, ignoring.');
+            return;
+          }
+
+          const commands = [
+            { command: 'take', pattern: /^\.take$/i },
+            { command: 'release', pattern: /^\.release$/i },
+            { command: 'assign', pattern: /^\.assign\s+@(\S+)$/i },
+            { command: 'unassign', pattern: /^\.unassign\s+@(\S+)$/i },
+          ];
+
+          const trimmed = comment.trim();
+          let parsed = null;
+          for (const { command, pattern } of commands) {
+            const match = trimmed.match(pattern);
+            if (match) {
+              parsed = { command, target: match[1] };
+              break;
+            }
+          }
+
+          if (!parsed) {
+            core.info('No recognized command found.');
+            return;
+          }
+          const { command, target } = parsed;
+
+          // Only collaborators may issue commands. Assign/unassign targets don't
+          // need a separate check: GitHub's API silently ignores any assignee that
+          // isn't a collaborator on the repository.
+          try {
+            await github.rest.repos.checkCollaborator({ owner, repo, username: commenter });
+          } catch (error) {
+            if (error.status === 404) {
+              core.info(`${commenter} is not a collaborator; ignoring "${comment}".`);
+              return;
+            }
+            throw error;
+          }
+
+          const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number });
+          const assignees = issue.assignees.map((a) => a.login);
+
+          if (command === 'take') {
+            if (assignees.length > 0) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `@${commenter} this issue is already assigned to ${assignees.map((a) => `@${a}`).join(', ')}.`,
+              });
+              core.info(`Commented on issue #${issue_number} instead of assigning.`);
+              return;
+            }
+            await github.rest.issues.addAssignees({ owner, repo, issue_number, assignees: [commenter] });
+            core.info(`Assigned issue #${issue_number} to ${commenter}.`);
+            return;
+          }
+
+          if (command === 'release') {
+            if (!assignees.includes(commenter)) {
+              core.info(`No action taken: ${commenter} is not assigned to this issue.`);
+              return;
+            }
+            await github.rest.issues.removeAssignees({ owner, repo, issue_number, assignees: [commenter] });
+            core.info(`Unassigned ${commenter} from issue #${issue_number}.`);
+            return;
+          }
+
+          if (command === 'assign') {
+            await github.rest.issues.addAssignees({ owner, repo, issue_number, assignees: [target] });
+            core.info(`Assigned issue #${issue_number} to ${target}.`);
+            return;
+          }
+
+          if (command === 'unassign') {
+            await github.rest.issues.removeAssignees({ owner, repo, issue_number, assignees: [target] });
+            core.info(`Unassigned ${target} from issue #${issue_number}.`);
+          }

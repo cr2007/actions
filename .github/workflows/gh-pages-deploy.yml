@@ -1,0 +1,65 @@
+name: Reusable GitHub Pages Deployment Workflow
+
+on:
+  workflow_call:
+    inputs:
+      build-command:
+        description: 'Command to build the site. Runs after "ni" installs dependencies. Defaults to "nr build".'
+        required: false
+        type: string
+        default: nr build
+      output-dir:
+        description: Directory containing the built site, relative to the repository root.
+        required: false
+        type: string
+        default: dist
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install ni
+        run: bun install -g @antfu/ni
+
+      - name: Install dependencies
+        run: ni --frozen
+
+      - name: Build site
+        run: ${{ inputs.build-command }}
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ inputs.output-dir }}
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

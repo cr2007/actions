@@ -1,0 +1,22 @@
+name: Handle Issue Comments
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+
+jobs:
+  handle-comment:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - uses: cr2007/actions/issue-assignment@v1
+        with:
+          comment-body: ${{ github.event.comment.body }}
+          comment-author: ${{ github.event.comment.user.login }}
+          issue-number: ${{ github.event.issue.number }}
+          repository: ${{ github.repository }}
+          is-pull-request: ${{ github.event.issue.pull_request != null }}

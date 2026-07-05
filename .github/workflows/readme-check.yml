@@ -1,0 +1,24 @@
+name: Check README is up to date
+
+on:
+  pull_request:
+    paths:
+      - 'examples/**'
+      - 'README.md'
+      - 'scripts/generate-readme.js'
+      - 'scripts/lib/readme-snippets.js'
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - run: bun scripts/generate-readme.js --check

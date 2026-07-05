@@ -1,0 +1,65 @@
+name: Reusable Typst Deployment Workflow
+
+on:
+  workflow_call:
+    inputs:
+      source-file:
+        description: Path to the Typst entry file to compile, relative to the repository root.
+        required: true
+        type: string
+      output-file:
+        description: Name of the compiled PDF, as it will appear on the deployed Pages site.
+        required: false
+        type: string
+        default: document.pdf
+      typst-version:
+        description: Typst version range to install. Defaults to the latest release.
+        required: false
+        type: string
+        default: latest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: typst-community/setup-typst@v5
+        with:
+          typst-version: ${{ inputs.typst-version }}
+
+      - name: Compile Typst document
+        run: |
+          mkdir -p _site
+          typst compile "${{ inputs.source-file }}" "_site/${{ inputs.output-file }}"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
